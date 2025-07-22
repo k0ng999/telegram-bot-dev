@@ -1,0 +1,3 @@
+TOKEN = '7867141039:AAGgWM4HrAxounNG4zuJdCQqIUxHcHg3GLw'
+SUPABASE_URL = 'https://zeqerhklxnrwetjfmlhd.supabase.co'
+SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplcWVyaGtseG5yd2V0amZtbGhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMwNTg2MTAsImV4cCI6MjA2ODYzNDYxMH0.k8fKFftV168isFoiuvVkofalT1teRcoPukU16mbcJXo'
