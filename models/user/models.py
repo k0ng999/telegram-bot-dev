@@ -1,82 +1,99 @@
-from sqlalchemy import (
-    Table, Column, String, Integer, Date, Boolean, ForeignKey, MetaData
-)
-import sqlalchemy.dialects.postgresql as pg
+from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import Column, String, Integer, Date, Boolean, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
+from datetime import date
 
-metadata = MetaData()
+Base = declarative_base()
 
-# sellers — Продавцы
-sellers = Table(
-    "sellers",
-    metadata,
-    Column("id", pg.UUID(as_uuid=True), primary_key=True),
-    Column("registration_date", Date, nullable=False),
-    Column("telegram_id", String, unique=True, nullable=False),
-    Column("name", String, nullable=False),
-    Column("shop_name", String, nullable=False),
-    Column("city", String, nullable=False),
-    Column("bank_name", String),
-    Column("card_number", String),
-)
+class Seller(Base):
+    __tablename__ = "sellers"
 
-# exams — Экзамены продавца
-exams = Table(
-    "exams",
-    metadata,
-    Column("id", pg.UUID(as_uuid=True), primary_key=True),
-    Column("seller_id", pg.UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False),
-    Column("exam_date", Date, nullable=False),
-    Column("correct_answers", Integer, nullable=False),
-)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    registration_date = Column(Date, nullable=False)
+    telegram_id = Column(String, unique=True, nullable=False)
+    name = Column(String, nullable=False)
+    shop_name = Column(String, nullable=False)
+    city = Column(String, nullable=False)
+    bank_name = Column(String, nullable=True)
+    card_number = Column(String, nullable=True)
 
-# shipments — Отгрузки товаров
-shipments = Table(
-    "shipments",
-    metadata,
-    Column("id", pg.UUID(as_uuid=True), primary_key=True),
-    Column("seller_id", pg.UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False),
-    Column("shipment_date", Date, nullable=False),
-    Column("shipped_quantity", Integer, nullable=False),
-)
+    # Опционально: связи
+    exams = relationship("Exam", back_populates="seller")
+    shipments = relationship("Shipment", back_populates="seller")
+    sales_reports = relationship("SalesReport", back_populates="seller")
+    layouts = relationship("Layout", back_populates="seller")
+    payments = relationship("Payment", back_populates="seller")
+    seller_stats = relationship("SellerStat", back_populates="seller", uselist=False)
 
-# sales_reports — Отчёты о продажах
-sales_reports = Table(
-    "sales_reports",
-    metadata,
-    Column("id", pg.UUID(as_uuid=True), primary_key=True),
-    Column("seller_id", pg.UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False),
-    Column("report_date", Date, nullable=False),
-    Column("sold_quantity", Integer, nullable=False),
-    Column("receipt_photo_url", String),
-    Column("moderation_passed", Boolean),
-)
 
-# layouts — Фото выкладки товара
-layouts = Table(
-    "layouts",
-    metadata,
-    Column("id", pg.UUID(as_uuid=True), primary_key=True),
-    Column("seller_id", pg.UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False),
-    Column("layout_date", Date, nullable=False),
-    Column("layout_photo_url", String),
-)
+class Exam(Base):
+    __tablename__ = "exams"
 
-# payments — Выплаты бонусов
-payments = Table(
-    "payments",
-    metadata,
-    Column("id", pg.UUID(as_uuid=True), primary_key=True),
-    Column("seller_id", pg.UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False),
-    Column("payment_date", Date, nullable=False),
-    Column("amount", Integer, nullable=False),
-)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False)
+    exam_date = Column(Date, nullable=False, default=date.today)
+    correct_answers = Column(Integer, nullable=False, default=0)
+    active_answer = Column(Integer, nullable=False, default=0)
+    active_question = Column(Integer, nullable=False, default=0)  # индекс текущего вопроса (в тесте или обучении)
+    start_education = Column(Boolean, default=False)
+    end_education = Column(Boolean, default=False)
 
-# seller_stats — Статистика по продавцу
-seller_stats = Table(
-    "seller_stats",
-    metadata,
-    Column("seller_id", pg.UUID(as_uuid=True), ForeignKey("sellers.id"), primary_key=True),
-    Column("total_sold", Integer),
-    Column("total_bonus", Integer),
-    Column("unpaid_bonus", Integer),
-)
+    seller = relationship("Seller", back_populates="exams")
+
+
+class Shipment(Base):
+    __tablename__ = "shipments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False)
+    shipment_date = Column(Date, nullable=False)
+    shipped_quantity = Column(Integer, nullable=False)
+
+    seller = relationship("Seller", back_populates="shipments")
+
+
+class SalesReport(Base):
+    __tablename__ = "sales_reports"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False)
+    report_date = Column(Date, nullable=False)
+    sold_quantity = Column(Integer, nullable=False)
+    receipt_photo_url = Column(String, nullable=True)
+    moderation_passed = Column(Boolean, nullable=True)
+
+    seller = relationship("Seller", back_populates="sales_reports")
+
+
+class Layout(Base):
+    __tablename__ = "layouts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False)
+    layout_date = Column(Date, nullable=False)
+    layout_photo_url = Column(String, nullable=True)
+
+    seller = relationship("Seller", back_populates="layouts")
+
+
+class Payment(Base):
+    __tablename__ = "payments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False)
+    payment_date = Column(Date, nullable=False)
+    amount = Column(Integer, nullable=False)
+
+    seller = relationship("Seller", back_populates="payments")
+
+
+class SellerStat(Base):
+    __tablename__ = "seller_stats"
+
+    seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), primary_key=True)
+    total_sold = Column(Integer, nullable=True)
+    total_bonus = Column(Integer, nullable=True)
+    unpaid_bonus = Column(Integer, nullable=True)
+
+    seller = relationship("Seller", back_populates="seller_stats")

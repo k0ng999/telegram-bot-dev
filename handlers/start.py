@@ -1,6 +1,5 @@
 from telebot.types import Message, BotCommandScopeChat
 
-from commands import COMMANDS_WITHOUT_START, ALL_COMMANDS
 from models.user.crud_user import get_user, add_user
 
 # Временное хранилище шагов регистрации
@@ -14,10 +13,8 @@ def register(bot):
 
 
         if result:
-            bot.set_my_commands(COMMANDS_WITHOUT_START, scope=BotCommandScopeChat(chat_id=message.chat.id))
             bot.send_message(message.chat.id, "Вы уже зарегистрированы!")
         else:
-            bot.set_my_commands(ALL_COMMANDS, scope=BotCommandScopeChat(chat_id=message.chat.id))
             bot.send_message(message.chat.id, "Добро пожаловать! Давайте зарегистрируем вас.\nВведите ваше имя:")
             user_states[telegram_id] = {"step": "name"}
 

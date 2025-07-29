@@ -1,8 +1,7 @@
 from telebot.types import Message
 from sqlalchemy import select, func
-from models.user import user_engine
-from models.user.models import sales_reports
-
+from models.user import SessionLocal
+from models.user.models import SalesReport
 from models.user.crud_user import get_user
 
 def register(bot):
@@ -17,12 +16,12 @@ def register(bot):
 
         seller_id = seller['id']
 
-        with user_engine.connect() as conn:
-            sold_sum_query = select(func.coalesce(func.sum(sales_reports.c.sold_quantity), 0)).where(
-                sales_reports.c.seller_id == seller_id,
-                sales_reports.c.moderation_passed == True
+        with SessionLocal() as session:
+            sold_sum_query = select(func.coalesce(func.sum(SalesReport.sold_quantity), 0)).where(
+                SalesReport.seller_id == seller_id,
+                SalesReport.moderation_passed == True
             )
-            total_sold = conn.execute(sold_sum_query).scalar()
+            total_sold = session.execute(sold_sum_query).scalar_one()
 
         bot.send_message(
             message.chat.id,

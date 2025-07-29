@@ -1,15 +1,14 @@
 from telebot.types import BotCommand
 
 ALL_COMMANDS = [
-    BotCommand("start", "Начать регистрацию"),
-    BotCommand("support", "Поддержка"),
-    BotCommand("website", "Наш сайт"),
-    BotCommand("info", "Информация"),
-    BotCommand("catalog", "Каталог"),
-    BotCommand("education", "Обучение"),
-    BotCommand("stats", "Статистика"),
-    BotCommand("faq", "FAQ"),
-    BotCommand("news_and_bonuses", "Новости и Бонусы")
-]
+    BotCommand("start", "🚀 Главная страница"),
+    BotCommand("info", "ℹ️ Информация"),
+    BotCommand("catalog", "📚 Каталог"),
+    BotCommand("education", "🎓 Обучение"),
+    BotCommand("stats", "📊  Моя статистика"),
+    BotCommand("news_and_bonuses", "📰 Новости и Бонусы"),
+    BotCommand("website", "🌐 Наш сайт"),
+    BotCommand("faq", "❓ Часто задаваемые вопросы"),
+    BotCommand("support", "🆘 Поддержка"),
 
-COMMANDS_WITHOUT_START = [cmd for cmd in ALL_COMMANDS if cmd.command != "start"]
+]

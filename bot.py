@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 import telebot
 from handlers import (
-    start, support, website, info, catalog, education, stats, faq, news_and_bonuses
+    start, support, website, info, catalog, education, stats, faq, news_and_bonuses, get_chat_id
 )
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -24,16 +24,18 @@ TOKEN = os.getenv("TOKEN")
 bot = telebot.TeleBot(TOKEN)
 # Регистрация обработчиков
 start.register(bot)
-support.register(bot)
-website.register(bot)
 info.register(bot)
 catalog.register(bot)
 education.register(bot)
 stats.register(bot)
-faq.register(bot)
 news_and_bonuses.register(bot)
+website.register(bot)
+faq.register(bot)
+support.register(bot)
 
-bot.delete_my_commands(scope=BotCommandScopeDefault())
+get_chat_id.register(bot)
+
+
 bot.set_my_commands(ALL_COMMANDS, scope=BotCommandScopeDefault())
 
 # Мотивационные фразы
