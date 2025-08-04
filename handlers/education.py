@@ -1,4 +1,3 @@
-import os
 from telebot import TeleBot, types
 from datetime import date
 

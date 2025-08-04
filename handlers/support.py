@@ -5,7 +5,8 @@ from sqlalchemy import select
 from models.user import SessionLocal  # сессия ORM
 from models.user.models import Seller  # ORM-модель продавца
 
-MANAGER_CHAT_ID = -1002882986486
+MANAGER_CHAT_ID = -1002882986486  # ID супергруппы
+MANAGER_TOPIC_ID = 21             # ID темы форума (topic)
 
 support_state = {}  # chat_id -> bool
 pending_support_messages = {}  # chat_id -> текст
@@ -48,7 +49,7 @@ def register(bot):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("support_"))
     def handle_support_actions(call: CallbackQuery):
         chat_id = call.message.chat.id
-        action = call.data.split("_")[1]
+        action = call.data.split("_", 1)[1]
 
         if action == "confirm":
             user_text = pending_support_messages.get(chat_id)
@@ -66,7 +67,7 @@ def register(bot):
             if seller:
                 support_message = (
                     f"🔔 Обращение от продавца:\n"
-                    f"🆔 Telegram ID: {telegram_id}\n"
+                    f"🆔 Telegram ID: {telegram_id} (@{call.from_user.username or 'нет username'})\n"
                     f"👤 Имя: {seller.name}\n"
                     f"🏪 Магазин: {seller.shop_name}\n"
                     f"🏙 Город: {seller.city}\n"
@@ -77,13 +78,26 @@ def register(bot):
                 )
 
                 try:
-                    bot.send_message(MANAGER_CHAT_ID, support_message, parse_mode="Markdown")
+                    manager_markup = InlineKeyboardMarkup()
+                    manager_markup.add(
+                        InlineKeyboardButton("✅ Решено", callback_data="support_done")
+                    )
+
+                    bot.send_message(
+                        MANAGER_CHAT_ID,
+                        support_message,
+                        parse_mode="Markdown",
+                        message_thread_id=MANAGER_TOPIC_ID,
+                        reply_markup=manager_markup
+                    )
+
                 except Exception as e:
                     print("Ошибка при отправке менеджеру:", e)
 
                 bot.edit_message_text(
-                    "Сообщение отправлено менеджеру ✅ Ожидайте ответ в личных сообщениях(НЕ ЗАБУДЬТЕ ОТКРЫТЬ ЛИЧНЫЕ СООБЩЕНИЯ!)",
-                    chat_id, call.message.message_id)
+                    "Сообщение отправлено менеджеру ✅ Ожидайте ответ в личных сообщениях (НЕ ЗАБУДЬТЕ ОТКРЫТЬ ЛИЧНЫЕ СООБЩЕНИЯ!)",
+                    chat_id, call.message.message_id
+                )
             else:
                 bot.send_message(chat_id, "Вы ещё не зарегистрированы.")
 
@@ -117,3 +131,9 @@ def register(bot):
             support_state.pop(chat_id, None)
             pending_support_messages.pop(chat_id, None)
             bot.edit_message_text("Обращение отменено ❌", chat_id, call.message.message_id)
+
+        elif action == "done":
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except Exception as e:
+                print("Ошибка при удалении сообщения:", e)
