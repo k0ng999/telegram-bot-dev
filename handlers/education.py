@@ -1,12 +1,12 @@
 from telebot import TeleBot, types
 from datetime import date
+import json
 
 from models.service.models import LearningCard
 from models.service import SessionLocal as ServiceSessionLocal
 
 from models.user.models import Exam, Seller
 from models.user import SessionLocal as UserSessionLocal
-
 
 
 def register(bot: TeleBot):
@@ -24,13 +24,12 @@ def register(bot: TeleBot):
             exam = db.query(Exam).filter_by(seller_id=seller.id).first()
 
             if exam and exam.end_education:
-                kb = types.InlineKeyboardMarkup()
-                kb.add(types.InlineKeyboardButton("Отправить отчет о продажах", callback_data="send_sales_report"))
                 bot.send_message(
                     user_id,
                     "🎓 Вы успешно завершили обучение и готовы применять полученные знания на практике.\n\n"
-                    "Теперь вы можете отправить отчет о продажах, нажав кнопку ниже.",
-                    reply_markup=kb
+                    "Теперь вы можете отправить отчет о продажах, написав команду:\n\n"
+                    "`/sales_report`",
+                    parse_mode="Markdown"
                 )
                 return
 
@@ -49,6 +48,7 @@ def register(bot: TeleBot):
                     active_question=0,
                     start_education=True,
                     end_education=False,
+                    wrong_answers="[]"
                 )
                 db.add(exam)
                 db.commit()
@@ -59,6 +59,7 @@ def register(bot: TeleBot):
                     exam.end_education = False
                     exam.active_question = 0
                     exam.correct_answers = 0
+                    exam.wrong_answers = "[]"
                     db.commit()
 
             current_index = exam.active_question
@@ -83,12 +84,8 @@ def register(bot: TeleBot):
             kb.add(types.InlineKeyboardButton("➡️ Далее", callback_data="next_card"))
             bot.send_message(user_id, "Нажмите кнопку, чтобы продолжить обучение 📚", reply_markup=kb)
         else:
-            # Сообщение предупреждение перед кнопкой
-            bot.send_message(user_id,
-                             "⚠️ Не выходите из теста, иначе обучение начнётся заново. ⚠️"
-                             )
+            bot.send_message(user_id, "⚠️ Не выходите из теста, иначе обучение начнётся заново. ⚠️")
             kb.add(types.InlineKeyboardButton("✅ Всё понятно, готов пройти тест", callback_data="start_test"))
-
             bot.send_message(user_id, "Нажмите кнопку, чтобы перейти к тесту 📝", reply_markup=kb)
 
     @bot.callback_query_handler(func=lambda cq: cq.data == "prev_card")
@@ -103,8 +100,8 @@ def register(bot: TeleBot):
                 return
 
             cards = db_service.query(LearningCard).order_by(LearningCard.card_number).all()
-
             exam = db_user.query(Exam).filter_by(seller_id=seller.id).first()
+
             if not exam or not exam.start_education:
                 bot.answer_callback_query(cq.id, "Обучение не запущено.")
                 return
@@ -114,7 +111,7 @@ def register(bot: TeleBot):
                 return
 
             exam.active_question -= 1
-            exam.active_answer = 0  # сброс выбора ответа при возврате в обучение
+            exam.active_answer = 0
             db_user.commit()
             current_index = exam.active_question
 
@@ -163,10 +160,6 @@ def register(bot: TeleBot):
                 bot.answer_callback_query(cq.id, "Вы не зарегистрированы.")
                 return
 
-        with ServiceSessionLocal() as db:
-            cards = db.query(LearningCard).order_by(LearningCard.card_number).all()
-
-        with UserSessionLocal() as db:
             exam = db.query(Exam).filter_by(seller_id=seller.id).first()
             if not exam:
                 bot.answer_callback_query(cq.id, "Обучение не запущено.")
@@ -174,7 +167,11 @@ def register(bot: TeleBot):
 
             exam.active_question = 0
             exam.correct_answers = 0
+            exam.wrong_answers = "[]"
             db.commit()
+
+        with ServiceSessionLocal() as db:
+            cards = db.query(LearningCard).order_by(LearningCard.card_number).all()
 
         bot.answer_callback_query(cq.id)
         send_test_question(bot, user_id, cards, 0)
@@ -199,7 +196,6 @@ def register(bot: TeleBot):
                 return
 
             cards = db_service.query(LearningCard).order_by(LearningCard.card_number).all()
-
             exam = db_user.query(Exam).filter_by(seller_id=seller.id).first()
             if not exam:
                 bot.answer_callback_query(cq.id, "Обучение не запущено.")
@@ -214,10 +210,20 @@ def register(bot: TeleBot):
                 return
 
             card = cards[current_index]
+            options = [card.option_1, card.option_2, card.option_3, card.option_4]
 
             exam.active_answer = selected
             if selected == card.correct_option_index:
                 exam.correct_answers += 1
+            else:
+                wrong = {
+                    "question": card.question,
+                    "correct": options[card.correct_option_index],
+                    "selected": options[selected]
+                }
+                wrong_answers = json.loads(exam.wrong_answers or "[]")
+                wrong_answers.append(wrong)
+                exam.wrong_answers = json.dumps(wrong_answers, ensure_ascii=False)
 
             exam.active_question += 1
             next_index = exam.active_question
@@ -228,10 +234,9 @@ def register(bot: TeleBot):
                 exam.end_education = (exam.correct_answers == len(cards))
 
             db_user.commit()
-
-            # Сохраняем значения до выхода из сессии
             correct = exam.correct_answers
             total = len(cards)
+            wrong_answers = json.loads(exam.wrong_answers or "[]")
 
         bot.answer_callback_query(cq.id)
 
@@ -243,8 +248,15 @@ def register(bot: TeleBot):
             else:
                 kb = types.InlineKeyboardMarkup()
                 kb.add(types.InlineKeyboardButton("Начать заново", callback_data="restart_education"))
-                bot.send_message(user_id, f"Вы ответили правильно {correct} из {total}. Подтяните знания!",
-                                 reply_markup=kb)
+
+                message = f"❌ Вы ответили правильно на {correct} из {total} вопросов.\n\n"
+                for i, w in enumerate(wrong_answers, 1):
+                    message += (
+                        f"{i}. ❓ *{w['question']}*\n"
+                        f"🟥 Ваш ответ: {w['selected']}\n\n"
+                    )
+
+                bot.send_message(user_id, message, parse_mode="Markdown", reply_markup=kb)
 
     @bot.callback_query_handler(func=lambda cq: cq.data == "restart_education")
     def cq_restart_education(cq: types.CallbackQuery):
@@ -266,6 +278,7 @@ def register(bot: TeleBot):
             exam.end_education = False
             exam.active_question = 0
             exam.correct_answers = 0
+            exam.wrong_answers = "[]"
             db.commit()
 
         with ServiceSessionLocal() as db:

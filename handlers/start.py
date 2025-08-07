@@ -11,12 +11,14 @@ def register(bot):
         telegram_id = message.from_user.id
         result = get_user(telegram_id)
 
-
         if result:
-            bot.send_message(message.chat.id, "Вы уже зарегистрированы!")
+            bot.send_message(message.chat.id, "Добро пожаловать, 👋. Жми на меню снизу!")
         else:
             bot.send_message(message.chat.id, "Добро пожаловать! Давайте зарегистрируем вас.\nВведите ваше имя:")
-            user_states[telegram_id] = {"step": "name"}
+            user_states[telegram_id] = {
+                "step": "name",
+                "username": message.from_user.username or ""  # Получаем username сразу
+            }
 
     @bot.message_handler(func=lambda msg: msg.from_user.id in user_states)
     def handle_registration(message: Message):
@@ -36,16 +38,14 @@ def register(bot):
         elif state["step"] == "city":
             state["city"] = message.text
 
-            # Сохранение в Supabase 
+            # Сохранение в Supabase
             add_user(
                 telegram_id=telegram_id,
+                username=state["username"],
                 name=state["name"],
                 shop_name=state["shop_name"],
                 city=state["city"]
             )
 
-            bot.send_message(message.chat.id, f"Регистрация завершена! Добро пожаловать, {state['name']} 👋. Жми на меню снизу!")
+            bot.send_message(message.chat.id, f"Регистрация завершена! Добро пожаловать, 👋. Жми на меню снизу!")
             user_states.pop(telegram_id)
-
-
-    

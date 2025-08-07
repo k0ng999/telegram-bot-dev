@@ -28,13 +28,15 @@ info.register(bot)
 catalog.register(bot)
 education.register(bot)
 stats.register(bot)
-get_your_bonuses.register(bot)
 news_and_bonuses.register(bot)
 website.register(bot)
 faq.register(bot)
 support.register(bot)
 get_chat_id.register(bot)
 sales_report.register(bot)
+
+get_your_bonuses.register(bot)
+
 
 
 

@@ -25,7 +25,7 @@ def get_user(telegram_id: int):
         return None
 
 
-def add_user(telegram_id: int, name: str, shop_name: str, city: str):
+def add_user(telegram_id: int, username: str, name: str, shop_name: str, city: str):
     try:
         with SessionLocal() as session:
             new_seller = Seller(
@@ -33,7 +33,8 @@ def add_user(telegram_id: int, name: str, shop_name: str, city: str):
                 name=name,
                 shop_name=shop_name,
                 city=city,
-                registration_date=date.today()
+                registration_date=date.today(),
+                username=username
             )
             session.add(new_seller)
             session.commit()

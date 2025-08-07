@@ -17,10 +17,10 @@ class Seller(Base):
     city = Column(String, nullable=False)
     bank_name = Column(String, nullable=True)
     card_number = Column(String, nullable=True)
+    username = Column(String, nullable=True)
 
     # Опционально: связи
     exams = relationship("Exam", back_populates="seller")
-    shipments = relationship("Shipment", back_populates="seller")
     sales_reports = relationship("SalesReport", back_populates="seller")
     layouts = relationship("Layout", back_populates="seller")
     payments = relationship("Payment", back_populates="seller")
@@ -38,19 +38,10 @@ class Exam(Base):
     active_question = Column(Integer, nullable=False, default=0)  # индекс текущего вопроса (в тесте или обучении)
     start_education = Column(Boolean, default=False)
     end_education = Column(Boolean, default=False)
+    wrong_answers = Column(String, default=None)
 
     seller = relationship("Seller", back_populates="exams")
 
-
-class Shipment(Base):
-    __tablename__ = "shipments"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False)
-    shipment_date = Column(Date, nullable=False)
-    shipped_quantity = Column(Integer, nullable=False)
-
-    seller = relationship("Seller", back_populates="shipments")
 
 
 class SalesReport(Base):
