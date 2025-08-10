@@ -410,8 +410,10 @@ def register(bot):
 
         bot.send_message(
             int(data['telegram_id']),
-            '❌ Отчёт отклонён. Свяжитесь с менеджером.'
+            '❌ Отчёт отклонён. Обратитесь в поддержку.'
         )
+        bot.send_message(data["chat_id"], 'Нажмите "/support" или выберите в меню "Поддержка"')
+
         try:
             for pid in data['manager_photo_message_ids']:
                 bot.delete_message(data['manager_chat_id'], pid)
