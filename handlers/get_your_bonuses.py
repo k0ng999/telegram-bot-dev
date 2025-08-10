@@ -203,6 +203,8 @@ def register(bot):
 
             bot.answer_callback_query(call.id, "Запрос отклонён.")
             bot.send_message(data["chat_id"], "❌ Ваш запрос отклонён. Обратитесь в поддержку.")
+            bot.send_message(data["chat_id"], 'Нажмите "/support" или выберите в меню "Поддержка"')
+
             try:
                 bot.delete_message(call.message.chat.id, call.message.message_id)
             except:

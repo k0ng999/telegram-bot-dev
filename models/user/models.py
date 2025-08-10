@@ -57,16 +57,6 @@ class SalesReport(Base):
     seller = relationship("Seller", back_populates="sales_reports")
 
 
-class Layout(Base):
-    __tablename__ = "layouts"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False)
-    layout_date = Column(Date, nullable=False)
-    layout_photo_url = Column(String, nullable=True)
-
-    seller = relationship("Seller", back_populates="layouts")
-
 
 class Payment(Base):
     __tablename__ = "payments"

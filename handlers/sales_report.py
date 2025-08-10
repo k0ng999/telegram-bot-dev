@@ -381,10 +381,13 @@ def register(bot):
                     unpaid_bonus=bonus
                 ))
             db.commit()
-
         bot.send_message(
             int(data['telegram_id']),
-            f"🎉 Ваш отчёт одобрен! Бонус: {bonus}₽."
+            f"🎉"
+        )
+        bot.send_message(
+            int(data['telegram_id']),
+            f"Ваш отчёт одобрен! Бонус: {bonus}₽."
         )
         try:
             for pid in data['manager_photo_message_ids']:

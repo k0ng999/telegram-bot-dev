@@ -52,27 +52,28 @@ def register(bot):
         if not results:
             bot.send_message(message.chat.id, "Ничего не найдено 😔")
         else:
-            for item in results:
-                image_url = item.get("image_url")
+            item = results  # results — это один словарь
 
-                caption = f"📦 <b>{item['name']}</b>\nАртикул: <code>{item['sku']}</code>"
+            image_url = item.get("image_url")
 
-                if item.get("description"):
-                    caption += f"\n\n📝 {item['description']}"
+            caption = f"📦 <b>{item['name']}</b>\nАртикул: <code>{item['sku']}</code>"
 
-                if image_url:
-                    bot.send_photo(
-                        message.chat.id,
-                        photo=image_url,
-                        caption=caption,
-                        parse_mode="HTML"
-                    )
-                else:
-                    bot.send_message(
-                        message.chat.id,
-                        text=caption,
-                        parse_mode="HTML"
-                    )
+            if item.get("description"):
+                caption += f"\n\n📝 {item['description']}"
+
+            if image_url:
+                bot.send_photo(
+                    message.chat.id,
+                    photo=image_url,
+                    caption=caption,
+                    parse_mode="HTML"
+                )
+            else:
+                bot.send_message(
+                    message.chat.id,
+                    text=caption,
+                    parse_mode="HTML"
+                )
 
         # После вывода результатов предлагать заново выбрать режим поиска
         keyboard = types.InlineKeyboardMarkup(row_width=2)

@@ -53,8 +53,8 @@ def _search_products(search_term, search_type="article"):
                 JOIN oc_product_description pd ON p.product_id = pd.product_id
                 WHERE (
                     {search_clause}
-                )
-                LIMIT 10
+                ) AND pd.language_id = 1
+                LIMIT 1
             """.format(
                 search_clause="p.model LIKE %s OR p.sku LIKE %s" if search_type == "article" else "pd.name LIKE %s"
             )
@@ -65,14 +65,15 @@ def _search_products(search_term, search_type="article"):
             else:
                 cursor.execute(query, (like_value,))
 
-            results = cursor.fetchall()
+            result = cursor.fetchone()  # fetchone вместо fetchall
 
-            # Обработка результатов
-            for item in results:
-                item["description"] = clean_html_description(item.get("description", ""))
-                item["image_url"] = build_image_url(item.get("image"))
+            if result:
+                result["description"] = clean_html_description(result.get("description", ""))
+                result["image_url"] = build_image_url(result.get("image"))
+                return result
 
-            return results
+            return None
 
     finally:
         connection.close()
+

@@ -13,7 +13,7 @@ def fetch_products():
 
     try:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT * FROM oc_product_description")
+            cursor.execute("SELECT * FROM oc_product")
             rows = cursor.fetchall()
 
             for row in rows:

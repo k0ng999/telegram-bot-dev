@@ -249,7 +249,7 @@ def register(bot: TeleBot):
                 kb = types.InlineKeyboardMarkup()
                 kb.add(types.InlineKeyboardButton("Начать заново", callback_data="restart_education"))
 
-                message = f"❌ Вы ответили правильно на {correct} из {total} вопросов.\n\n"
+                message = f"❌ Вы ответили правильно на {correct} из {total} вопросов.\n\nНеправильные ответа:\n\n"
                 for i, w in enumerate(wrong_answers, 1):
                     message += (
                         f"{i}. ❓ *{w['question']}*\n"

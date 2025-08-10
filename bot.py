@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 import telebot
 from handlers import (
-    start, support, website, info, catalog, education, stats, faq, news_and_bonuses, get_chat_id, sales_report, get_your_bonuses
+    start, support, website, info, catalog, education, stats, faq, news_and_bonuses, get_chat_id, sales_report, get_your_bonuses, description
 )
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -34,6 +34,7 @@ faq.register(bot)
 support.register(bot)
 get_chat_id.register(bot)
 sales_report.register(bot)
+description.register(bot)
 
 get_your_bonuses.register(bot)
 
