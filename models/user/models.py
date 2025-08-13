@@ -22,7 +22,6 @@ class Seller(Base):
     # Опционально: связи
     exams = relationship("Exam", back_populates="seller")
     sales_reports = relationship("SalesReport", back_populates="seller")
-    layouts = relationship("Layout", back_populates="seller")
     payments = relationship("Payment", back_populates="seller")
     seller_stats = relationship("SellerStat", back_populates="seller", uselist=False)
 
@@ -32,6 +31,9 @@ class Exam(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False)
+    name = Column(String, nullable=False)
+    shop_name = Column(String, nullable=False)
+    city = Column(String, nullable=False)
     exam_date = Column(Date, nullable=False, default=date.today)
     correct_answers = Column(Integer, nullable=False, default=0)
     active_answer = Column(Integer, nullable=False, default=0)
@@ -49,6 +51,9 @@ class SalesReport(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False)
+    name = Column(String, nullable=False)
+    shop_name = Column(String, nullable=False)
+    city = Column(String, nullable=False)
     report_date = Column(Date, nullable=False)
     sold_quantity = Column(Integer, nullable=False)
     receipt_photo_url = Column(String, nullable=True)
@@ -63,6 +68,9 @@ class Payment(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False)
+    name = Column(String, nullable=False)
+    shop_name = Column(String, nullable=False)
+    city = Column(String, nullable=False)
     payment_date = Column(Date, nullable=False)
     amount = Column(Integer, nullable=False)
 
@@ -73,6 +81,9 @@ class SellerStat(Base):
     __tablename__ = "seller_stats"
 
     seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), primary_key=True)
+    name = Column(String, nullable=False)
+    shop_name = Column(String, nullable=False)
+    city = Column(String, nullable=False)
     total_sold = Column(Integer, nullable=True)
     total_bonus = Column(Integer, nullable=True)
     unpaid_bonus = Column(Integer, nullable=True)

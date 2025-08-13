@@ -24,12 +24,18 @@ def register(bot: TeleBot):
             exam = db.query(Exam).filter_by(seller_id=seller.id).first()
 
             if exam and exam.end_education:
+
+                keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+                btn_support = types.KeyboardButton('/sales_report')
+                keyboard.add(btn_support)
+
                 bot.send_message(
                     user_id,
                     "🎓 Вы успешно завершили обучение и готовы применять полученные знания на практике.\n\n"
                     "Теперь вы можете отправить отчет о продажах, написав команду:\n\n"
                     "`/sales_report`",
-                    parse_mode="Markdown"
+                    parse_mode="Markdown",
+                    reply_markup=keyboard
                 )
                 return
 
@@ -48,8 +54,12 @@ def register(bot: TeleBot):
                     active_question=0,
                     start_education=True,
                     end_education=False,
-                    wrong_answers="[]"
+                    wrong_answers="[]",
+                    name=seller.name,
+                    shop_name=seller.shop_name,
+                    city=seller.city
                 )
+
                 db.add(exam)
                 db.commit()
                 db.refresh(exam)

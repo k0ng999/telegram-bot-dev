@@ -2,6 +2,7 @@ from telebot.types import (
     Message, InlineKeyboardMarkup, InlineKeyboardButton,
     CallbackQuery, ReplyKeyboardRemove, InputMediaPhoto
 )
+from telebot import types
 from sqlalchemy import select
 from datetime import date
 from uuid import uuid4
@@ -356,8 +357,12 @@ def register(bot):
             seller = db.execute(
                 select(Seller).where(Seller.telegram_id == data['telegram_id'])
             ).scalar_one()
+
             new_r = SalesReport(
                 seller_id=seller.id,
+                name=seller.name,
+                shop_name=seller.shop_name,
+                city=seller.city,
                 report_date=date.today(),
                 sold_quantity=data['quantity'],
                 receipt_photo_url=data['photo_url_str'],
@@ -370,15 +375,21 @@ def register(bot):
                 select(SellerStat).where(SellerStat.seller_id == seller.id)
             ).scalar_one_or_none()
             if st:
+
                 st.total_sold += data['quantity']
                 st.total_bonus += bonus
                 st.unpaid_bonus += bonus
+
             else:
                 db.add(SellerStat(
                     seller_id=seller.id,
+                    name=seller.name,
+                    shop_name=seller.shop_name,
+                    city=seller.city,
                     total_sold=data['quantity'],
                     total_bonus=bonus,
                     unpaid_bonus=bonus
+
                 ))
             db.commit()
         bot.send_message(
@@ -408,12 +419,42 @@ def register(bot):
             bot.answer_callback_query(call.id, "⚠️ Запрос не найден.")
             return
 
+        with SessionLocal() as db:
+            seller = db.execute(
+                select(Seller).where(Seller.telegram_id == data['telegram_id'])
+            ).scalar_one()
+
+            # Запись отклонённого отчёта
+            new_r = SalesReport(
+                seller_id=seller.id,
+                name=seller.name,
+                shop_name=seller.shop_name,
+                city=seller.city,
+                report_date=date.today(),
+                sold_quantity=data['quantity'],
+                receipt_photo_url=data['photo_url_str'],
+                moderation_passed=False
+            )
+            db.add(new_r)
+            db.commit()
+
+        # Уведомление пользователя
         bot.send_message(
             int(data['telegram_id']),
             '❌ Отчёт отклонён. Обратитесь в поддержку.'
         )
-        bot.send_message(data["chat_id"], 'Нажмите "/support" или выберите в меню "Поддержка"')
 
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        btn_support = types.KeyboardButton('/support')
+        keyboard.add(btn_support)
+
+        bot.send_message(
+            data["telegram_id"],
+            'Нажмите кнопку "/support", чтобы связаться с оператором.',
+            reply_markup=keyboard
+        )
+
+        # Удаление сообщений менеджера
         try:
             for pid in data['manager_photo_message_ids']:
                 bot.delete_message(data['manager_chat_id'], pid)
@@ -424,3 +465,4 @@ def register(bot):
 
         pending_reports.pop(report_id, None)
         bot.answer_callback_query(call.id, "❌ Отклонено.")
+

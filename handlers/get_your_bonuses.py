@@ -4,6 +4,7 @@ from datetime import date
 import uuid
 from models.user import SessionLocal
 from models.user.models import Seller, SellerStat, Payment
+from telebot import types
 
 MANAGER_CHAT_ID = -1002882986486
 MANAGER_TOPIC_ID = 163
@@ -79,11 +80,13 @@ def register(bot):
             try:
                 amount = int(message.text.strip())
             except ValueError:
-                bot.send_message(message.chat.id, "Введите сумму числом, пожалуйста.", reply_markup=cancel_markup(withdraw_id))
+                bot.send_message(message.chat.id, "Введите сумму числом, пожалуйста.",
+                                 reply_markup=cancel_markup(withdraw_id))
                 return
 
             if amount <= 0:
-                bot.send_message(message.chat.id, "Сумма должна быть положительным числом.", reply_markup=cancel_markup(withdraw_id))
+                bot.send_message(message.chat.id, "Сумма должна быть положительным числом.",
+                                 reply_markup=cancel_markup(withdraw_id))
                 return
 
             if amount > data["stat"].unpaid_bonus:
@@ -96,7 +99,8 @@ def register(bot):
 
             if data["bank_name"] and data["card_number"]:
                 markup = InlineKeyboardMarkup()
-                markup.add(InlineKeyboardButton("Использовать текущую карту", callback_data=f"use_old_card|{withdraw_id}"))
+                markup.add(
+                    InlineKeyboardButton("Использовать текущую карту", callback_data=f"use_old_card|{withdraw_id}"))
                 markup.add(InlineKeyboardButton("Ввести новую карту", callback_data=f"new_card|{withdraw_id}"))
                 markup.add(InlineKeyboardButton("❌ Отменить запрос", callback_data=f"cancel|{withdraw_id}"))
                 bot.send_message(message.chat.id,
@@ -110,7 +114,8 @@ def register(bot):
 
         elif step == "waiting_bank_name":
             data["bank_name"] = message.text.strip()
-            bot.send_message(message.chat.id, "Введите номер карты (12–19 цифр):", reply_markup=cancel_markup(withdraw_id))
+            bot.send_message(message.chat.id, "Введите номер карты (12–19 цифр):",
+                             reply_markup=cancel_markup(withdraw_id))
             data["step"] = "waiting_card_number"
 
         elif step == "waiting_card_number":
@@ -168,9 +173,17 @@ def register(bot):
             bot.edit_message_reply_markup(data["chat_id"], call.message.message_id)
 
             with SessionLocal() as db:
-                seller = db.execute(select(Seller).where(Seller.id == data["seller_id"])).scalar_one()
+                seller = db.execute(
+                    select(Seller).where(Seller.id == data["seller_id"])
+                ).scalar_one_or_none()
+
+                if seller is None:
+                    # обработка ситуации, когда продавец не найден
+                    raise ValueError("Seller not found")
+
                 seller.bank_name = data["bank_name"]
                 seller.card_number = data["card_number"]
+
                 db.commit()
 
             admin_text = (
@@ -203,7 +216,16 @@ def register(bot):
 
             bot.answer_callback_query(call.id, "Запрос отклонён.")
             bot.send_message(data["chat_id"], "❌ Ваш запрос отклонён. Обратитесь в поддержку.")
-            bot.send_message(data["chat_id"], 'Нажмите "/support" или выберите в меню "Поддержка"')
+
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            btn_support = types.KeyboardButton('/support')
+            keyboard.add(btn_support)
+
+            bot.send_message(
+                data["telegram_id"],
+                'Нажмите кнопку "/support", чтобы связаться с оператором.',
+                reply_markup=keyboard
+            )
 
             try:
                 bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -226,7 +248,10 @@ def register(bot):
                 payment = Payment(
                     seller_id=data["seller_id"],
                     payment_date=date.today(),
-                    amount=data["amount"]
+                    amount=data["amount"],
+                    name = data["seller_name"],
+                    shop_name = data["shop_name"],
+                    city = data["city"],
                 )
 
                 db.add(payment)

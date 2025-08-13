@@ -1,4 +1,4 @@
-from telebot.types import Message, BotCommandScopeChat
+from telebot.types import Message
 
 from models.user.crud_user import get_user, add_user
 

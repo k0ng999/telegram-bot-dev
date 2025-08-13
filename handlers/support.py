@@ -1,6 +1,7 @@
 from telebot.types import (
     InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
 )
+from telebot import types
 from sqlalchemy import select
 from models.user import SessionLocal
 from models.user.models import Seller
@@ -24,14 +25,13 @@ def register(bot):
         manager_messages[chat_id] = []
         delete_buttons_msgs[chat_id] = []
 
+        # 1. Убираем кнопки возле инпута
+        bot.send_message(chat_id, "Режим поддержки", reply_markup=types.ReplyKeyboardRemove())
+
+        # 2. Отправляем inline-кнопку
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("⬅️ Назад", callback_data="support_cancel"))
-
-        bot.send_message(
-            chat_id,
-            "Опишите ваш вопрос или проблему:",
-            reply_markup=markup
-        )
+        bot.send_message(chat_id, "Опишите ваш вопрос или проблему:", reply_markup=markup)
 
     @bot.message_handler(func=lambda msg: support_state.get(msg.chat.id) == "text")
     def handle_support_text(message: Message):
