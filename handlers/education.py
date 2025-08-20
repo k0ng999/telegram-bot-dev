@@ -39,6 +39,7 @@ def register(bot: TeleBot):
                 )
                 return
 
+
         with ServiceSessionLocal() as db:
             cards = db.query(LearningCard).order_by(LearningCard.card_number).all()
             if not cards:
@@ -94,9 +95,10 @@ def register(bot: TeleBot):
             kb.add(types.InlineKeyboardButton("➡️ Далее", callback_data="next_card"))
             bot.send_message(user_id, "Нажмите кнопку, чтобы продолжить обучение 📚", reply_markup=kb)
         else:
-            bot.send_message(user_id, "⚠️ Не выходите из теста, иначе обучение начнётся заново. ⚠️")
             kb.add(types.InlineKeyboardButton("✅ Всё понятно, готов пройти тест", callback_data="start_test"))
+            bot.send_message(user_id, "Поздравляю! ты прошел обучение! Мы подготовили небольшой тест, это займет всего пару минут 🕒")
             bot.send_message(user_id, "Нажмите кнопку, чтобы перейти к тесту 📝", reply_markup=kb)
+            bot.send_message(user_id, "⚠️ Не выходите из теста, иначе обучение начнётся заново. ⚠️")
 
     @bot.callback_query_handler(func=lambda cq: cq.data == "prev_card")
     def cq_prev_card(cq: types.CallbackQuery):

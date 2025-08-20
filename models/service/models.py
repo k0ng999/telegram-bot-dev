@@ -30,3 +30,16 @@ class LearningCard(Base):
     option_3 = Column(Text, nullable=False)
     option_4 = Column(Text, nullable=False)
     correct_option_index = Column(SmallInteger, nullable=False)
+
+class FakeChart (Base):
+    __tablename__ = "fake_chart"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(Text, nullable=False)
+    total_bonus = Column(Integer, nullable=False)
+
+class fake_users_stats (Base):
+    __tablename__ = "fake_users_stats"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    fake_active = Column(Boolean, nullable=False)
