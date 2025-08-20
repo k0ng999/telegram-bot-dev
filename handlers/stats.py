@@ -28,10 +28,6 @@ def register(bot):
         first_user = service_session.execute(
             select(fake_users_stats).order_by(fake_users_stats.id)
         ).scalars().first()
-        if not (first_user and first_user.fake_active):
-            bot.send_message(message.chat.id, "Нет данных для отображения 📊")
-            service_session.close()
-            return
 
         # --- Получаем пользователя по telegram_id ---
         user_session = UserSessionLocal()
@@ -41,7 +37,12 @@ def register(bot):
             ).scalars().first()
 
             if not seller_user:
-                bot.send_message(message.chat.id, "Пользователь не найден 📊")
+                bot.send_message(
+                    message.chat.id, 
+                    "Пользователь не найден 📊\n\n"
+                    "👤 Похоже, вы ещё не зарегистрированы.\n"
+                    "✍️ Чтобы пользоваться статистикой, зарегистрируйтесь в системе."
+                )
                 return
 
             seller_stat = user_session.execute(
@@ -49,24 +50,46 @@ def register(bot):
             ).scalars().first()
 
             if not seller_stat:
-                bot.send_message(message.chat.id, "Нет данных статистики 📊")
+                bot.send_message(
+                    message.chat.id, 
+                    "Нет данных статистики 📊\n\n"
+                    "📩 Отправьте отчёт о продажах, чтобы статистика появилась."
+                )
                 return
         finally:
             user_session.close()
 
-        # --- Получаем данные FakeChart ---
-        try:
-            chart_data_all = service_session.execute(
-                select(FakeChart).order_by(FakeChart.total_bonus)
-            ).scalars().all()
-        finally:
-            service_session.close()
+        # --- Определяем источник данных ---
+        chart_data = []
+        if first_user and first_user.fake_active:
+            # --- Данные из FakeChart ---
+            try:
+                chart_data_all = service_session.execute(
+                    select(FakeChart).order_by(FakeChart.total_bonus.desc())
+                ).scalars().all()
+            finally:
+                service_session.close()
 
-        chart_data = chart_data_all[:9]  # берём только 9
+            chart_data = chart_data_all[:9]
+            store_names = [f"{seller_stat.shop_name} (Вы)"] + [c.shop_name for c in chart_data]
+            numbers = [seller_stat.total_bonus] + [c.total_bonus for c in chart_data]
 
-        # --- Формируем данные для графика ---
-        numbers = [seller_stat.total_bonus] + [c.total_bonus for c in chart_data]
-        store_names = [f"{seller_stat.shop_name} (Вы)"] + [c.name for c in chart_data]
+        else:
+            # --- Данные из SellerStat (топ-9 по total_bonus) ---
+            user_session = UserSessionLocal()
+            try:
+                top_sellers = user_session.execute(
+                    select(SellerStat).order_by(SellerStat.total_bonus.desc())
+                ).scalars().all()
+            finally:
+                user_session.close()
+
+            # исключаем текущего пользователя
+            top_sellers = [s for s in top_sellers if s.seller_id != seller_user.id][:9]
+
+            # даже если нет других продавцов — всё равно рисуем текущего
+            store_names = [f"{seller_stat.shop_name} (Вы)"] + [s.shop_name for s in top_sellers]
+            numbers = [seller_stat.total_bonus] + [s.total_bonus for s in top_sellers]
 
 
         df = pd.DataFrame({
@@ -140,6 +163,9 @@ def register(bot):
         bot.send_photo(
             message.chat.id, 
             buf, 
-            caption="Ваш график продаж 📊 (с номерами под колонками)\n\n💡 Ты всегда можешь контролировать свой результат и улучшать свои показатели!"
+            caption=(
+                "Ваш график продаж 📊 (с номерами под колонками)\n\n"
+                "💡 Ты всегда можешь контролировать свой результат и улучшать показатели!\n"
+                "📩 Не забудь вовремя отправлять отчёты о продажах, чтобы статистика оставалась актуальной."
+            )
         )
-
