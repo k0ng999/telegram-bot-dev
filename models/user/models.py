@@ -1,9 +1,9 @@
 from sqlalchemy.orm import declarative_base, relationship
-from sqlalchemy import Column, String, Integer, Date, Boolean, ForeignKey
+from sqlalchemy import Column, String, Integer, Date, Boolean, ForeignKey, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
-from datetime import date
 
+from datetime import datetime, timezone
 Base = declarative_base()
 
 class Seller(Base):
@@ -20,31 +20,45 @@ class Seller(Base):
     username = Column(String, nullable=True)
 
     # Опционально: связи
-    exams = relationship("Exam", back_populates="seller")
     sales_reports = relationship("SalesReport", back_populates="seller")
     payments = relationship("Payment", back_populates="seller")
     seller_stats = relationship("SellerStat", back_populates="seller", uselist=False)
+    logs_tests = relationship("Logs_test", back_populates="seller")
+    test_attempts = relationship("TestAttempt", back_populates="seller")
 
 
-class Exam(Base):
-    __tablename__ = "exams"
+
+
+class TestAttempt(Base):
+    """Прохождение теста отдельной сущностью"""
+    __tablename__ = "test_attempts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False)
     name = Column(String, nullable=False)
     shop_name = Column(String, nullable=False)
     city = Column(String, nullable=False)
-    exam_date = Column(Date, nullable=False, default=date.today)
+    correct_answers = Column(Integer, default=0)
+    wrong_answers = Column(String, default="[]")
+    current_question_index = Column(Integer, default=0)
+    finished = Column(Boolean, default=False)
+
+    seller = relationship("Seller", back_populates="test_attempts")
+
+
+class Logs_test(Base):
+    __tablename__ = "logs_test"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    seller_id = Column(UUID(as_uuid=True), ForeignKey("sellers.id"), nullable=False)
+    name = Column(String, nullable=False)
+    shop_name = Column(String, nullable=False)
+    city = Column(String, nullable=False)
     correct_answers = Column(Integer, nullable=False, default=0)
-    active_answer = Column(Integer, nullable=False, default=0)
-    active_question = Column(Integer, nullable=False, default=0)  # индекс текущего вопроса (в тесте или обучении)
-    start_education = Column(Boolean, default=False)
-    end_education = Column(Boolean, default=False)
+    exam_date = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     wrong_answers = Column(String, default=None)
 
-    seller = relationship("Seller", back_populates="exams")
-
-
+    seller = relationship("Seller", back_populates="logs_tests")
 
 class SalesReport(Base):
     __tablename__ = "sales_reports"
@@ -89,3 +103,4 @@ class SellerStat(Base):
     unpaid_bonus = Column(Integer, nullable=True)
 
     seller = relationship("Seller", back_populates="seller_stats")
+

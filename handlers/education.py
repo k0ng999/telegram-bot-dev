@@ -1,350 +1,178 @@
 from telebot import TeleBot, types
-from datetime import date
-import json
-
-from models.service.models import LearningCard
+from sqlalchemy import asc
+from models.user.models import Seller, TestAttempt
+from models.service.models import LearningCard, LearningBlocks
+from models.user import SessionLocal as UserSessionLocal
 from models.service import SessionLocal as ServiceSessionLocal
 
-from models.user.models import Exam, Seller
-from models.user import SessionLocal as UserSessionLocal
-
-# --- Глобальный словарь для хранения ID последних сообщений бота ---
-last_bot_messages = {}
-
-
-def safe_send_message(bot, user_id, text, **kwargs):
-    """Отправка текста с сохранением ID"""
-    msg = bot.send_message(user_id, text, **kwargs)
-    last_bot_messages.setdefault(user_id, []).append(msg.message_id)
-    return msg
+WELCOME_TEXT = (
+    "Добро пожаловать в команду Maison!\n"
+    "Здесь каждый шаг — это стиль, комфорт и уверенность.\n\n"
+    "В этом обучающем блоке ты узнаешь всё, что нужно для отличного старта:\n"
+    "об особенностях и ассортименте нашей продукции, маркетинге и продвижении - что поможет тебе легко и уверенно продавать!\n"
+    "Наша цель — не просто продавать обувь, а дарить ощущение лёгкости, уверенности и красоты каждому, кто выбирает Maison!"
+)
 
 
-def safe_send_photo(bot, user_id, photo, **kwargs):
-    """Отправка фото с сохранением ID"""
-    msg = bot.send_photo(user_id, photo, **kwargs)
-    last_bot_messages.setdefault(user_id, []).append(msg.message_id)
-    return msg
+def show_blocks_menu(bot: TeleBot, chat_id):
+    """Показывает меню блоков обучения и отдельную кнопку 'Пройти обучение', возвращает список ID сообщений"""
+    message_ids = []
+
+    with ServiceSessionLocal() as service_session:
+        blocks = service_session.query(LearningBlocks).order_by(asc(LearningBlocks.block_number)).all()
+
+    # Сначала список блоков
+    keyboard_blocks = types.InlineKeyboardMarkup()
+    for block in blocks:
+        keyboard_blocks.add(types.InlineKeyboardButton(block.block_name, callback_data=f"block_{block.block_number}"))
+    msg_blocks = bot.send_message(chat_id, "Выберите блок обучения:", reply_markup=keyboard_blocks)
+    message_ids.append(msg_blocks.message_id)
+
+    # Отдельная кнопка "Пройти тест"
+    if blocks:
+        keyboard_start = types.InlineKeyboardMarkup()
+        keyboard_start.add(types.InlineKeyboardButton("Пройти тест ✅", callback_data="start_test"))
+        msg_start = bot.send_message(
+            chat_id,
+            "Прошли обучение? Тогда пройдите тест и сможете отправлять отчеты!",
+            reply_markup=keyboard_start
+        )
+        message_ids.append(msg_start.message_id)
+
+    return message_ids
 
 
-def safe_send_media_group(bot, user_id, media, **kwargs):
-    """Отправка медиа-группы с сохранением ID"""
-    msgs = bot.send_media_group(user_id, media, **kwargs)
-    for m in msgs:
-        last_bot_messages.setdefault(user_id, []).append(m.message_id)
-    return msgs
-
-
-def clear_last_messages(bot, user_id):
-    """Удаляет предыдущие сообщения пользователя"""
-    if user_id in last_bot_messages:
-        for mid in last_bot_messages[user_id]:
+def send_card(bot: TeleBot, chat_id, seller_id, block_number, card_number=1, last_message_ids=None):
+    """Отправка карточки конкретного блока, удаляем все предыдущие сообщения перед отправкой"""
+    if last_message_ids:
+        for msg_id in last_message_ids:
             try:
-                bot.delete_message(user_id, mid)
-            except Exception:
+                bot.delete_message(chat_id, msg_id)
+            except:
                 pass
-        last_bot_messages[user_id] = []
+
+    # Проверка, прошёл ли пользователь обучение
+    with UserSessionLocal() as user_session:
+        finished_attempt = user_session.query(TestAttempt).filter_by(seller_id=seller_id, finished=True).first()
+        if finished_attempt:
+            keyboard_sales = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+            keyboard_sales.add(types.KeyboardButton("/sales_report"))
+            bot.send_message(
+                chat_id,
+                "✅ Вы уже прошли обучение! Теперь вы можете отправить отчет, написав /sales_report.",
+                reply_markup=keyboard_sales
+            )
+            return None
+
+    # Получаем карточки блока
+    with ServiceSessionLocal() as service_session:
+        cards = service_session.query(LearningCard).filter_by(block=block_number).order_by(asc(LearningCard.card_number)).all()
+        if not cards:
+            bot.send_message(chat_id, "Карточки для этого блока не найдены ❌")
+            return None
+
+        card_number = max(1, min(card_number, len(cards)))
+        card = cards[card_number - 1]
+
+    # Кнопки навигации
+    is_last_card = card_number == len(cards)
+    keyboard = types.InlineKeyboardMarkup()
+    if card_number > 1:
+        keyboard.add(types.InlineKeyboardButton("⬅ Назад", callback_data=f"card_{block_number}_{card_number-1}"))
+    if not is_last_card:
+        keyboard.add(types.InlineKeyboardButton("Вперед ➡", callback_data=f"card_{block_number}_{card_number+1}"))
+    else:
+        keyboard.add(types.InlineKeyboardButton("Завершить блок ➡", callback_data="show_congrats"))
+
+    # Отправка карточки
+    if card.image_urls:
+        urls = [u.strip() for u in card.image_urls.split(",") if u.strip()]
+        msg = bot.send_photo(chat_id, urls[0], caption=f"📚 {card.lesson_text}", reply_markup=keyboard)
+        for url in urls[1:]:
+            bot.send_photo(chat_id, url)
+    else:
+        msg = bot.send_message(chat_id, f"📚 {card.lesson_text}", reply_markup=keyboard)
+
+    return msg.message_id
 
 
 def register(bot: TeleBot):
+    """Регистрируем команды и коллбеки для обучения"""
+
     @bot.message_handler(commands=['education'])
-    def cmd_education(message: types.Message):
-        user_id = message.from_user.id
-        telegram_id = str(user_id)
+    def handle_education(message):
+        telegram_id = str(message.from_user.id)
 
-        with UserSessionLocal() as db:
-            seller = db.query(Seller).filter_by(telegram_id=telegram_id).first()
-            if not seller:
-                bot.send_message(user_id, "🚫 Вы не зарегистрированы как продавец.")
+        with UserSessionLocal() as user_session:
+            seller_id = user_session.query(Seller.id).filter_by(telegram_id=telegram_id).scalar()
+            if not seller_id:
+                bot.send_message(message.chat.id, "❌ Вы не зарегистрированы. Используйте /start")
                 return
 
-            exam = db.query(Exam).filter_by(seller_id=seller.id).first()
-
-            if exam and exam.end_education:
-                keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-                btn_support = types.KeyboardButton('/sales_report')
-                keyboard.add(btn_support)
-
+            finished_attempt = user_session.query(TestAttempt).filter_by(seller_id=seller_id, finished=True).first()
+            if finished_attempt:
+                keyboard_sales = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+                keyboard_sales.add(types.KeyboardButton("/sales_report"))
                 bot.send_message(
-                    user_id,
-                    "🎓 Вы успешно завершили обучение и готовы применять полученные знания на практике.\n\n"
-                    "Теперь вы можете отправить отчет о продажах, написав команду:\n\n"
-                    "`/sales_report`",
-                    parse_mode="Markdown",
-                    reply_markup=keyboard
+                    message.chat.id,
+                    "✅ Вы уже прошли обучение! Теперь вы можете пройти тест, написав /sales_report.",
+                    reply_markup=keyboard_sales
                 )
                 return
 
-        with ServiceSessionLocal() as db:
-            cards = db.query(LearningCard).order_by(LearningCard.card_number).all()
-            if not cards:
-                bot.send_message(user_id, "Карточек для обучения пока нет.")
+        bot.send_message(message.chat.id, WELCOME_TEXT)
+        # Сохраняем ID сообщений для последующего удаления
+        bot.user_last_messages = getattr(bot, "user_last_messages", {})
+        bot.user_last_messages[telegram_id] = show_blocks_menu(bot, message.chat.id)
+
+    @bot.callback_query_handler(
+        func=lambda call: call.data.startswith("block_") or call.data.startswith("card_") or
+                          call.data == "show_congrats" or call.data.startswith("start_block_")
+    )
+    def handle_callback(call):
+        telegram_id = str(call.from_user.id)
+
+        with UserSessionLocal() as user_session:
+            seller_id = user_session.query(Seller.id).filter_by(telegram_id=telegram_id).scalar()
+            if not seller_id:
+                bot.answer_callback_query(call.id, "❌ Вы не зарегистрированы.")
                 return
 
-        with UserSessionLocal() as db:
-            if not exam:
-                exam = Exam(
-                    seller_id=seller.id,
-                    exam_date=date.today(),
-                    correct_answers=0,
-                    active_question=0,
-                    start_education=True,
-                    end_education=False,
-                    wrong_answers="[]",
-                    name=seller.name,
-                    shop_name=seller.shop_name,
-                    city=seller.city
-                )
-                db.add(exam)
-                db.commit()
-                db.refresh(exam)
-            else:
-                if not exam.start_education:
-                    exam.start_education = True
-                    exam.end_education = False
-                    exam.active_question = 0
-                    exam.correct_answers = 0
-                    exam.wrong_answers = "[]"
-                    db.commit()
+        last_message_ids = getattr(bot, "user_last_messages", {}).get(telegram_id, [])
 
-            current_index = exam.active_question
+        # Кнопка «Пройти обучение» — сразу первая карточка блока
+        if call.data.startswith("start_block_"):
+            block_number = int(call.data.split("_")[2])
+            send_card(bot, call.message.chat.id, seller_id, block_number, card_number=1, last_message_ids=last_message_ids)
+            bot.answer_callback_query(call.id)
+            return
 
-        send_learning_card(bot, user_id, cards, current_index)
+        if call.data.startswith("block_"):
+            block_number = int(call.data.split("_")[1])
+            send_card(bot, call.message.chat.id, seller_id, block_number, card_number=1, last_message_ids=last_message_ids)
+            bot.answer_callback_query(call.id)
+            return
 
-    # ---------------- ХЕЛПЕРЫ ----------------
-    def send_learning_card(bot, user_id, cards, index):
-        clear_last_messages(bot, user_id)  # удаляем старые сообщения
-
-        card = cards[index]
-        urls = [u.strip() for u in (card.image_urls or "").split(',') if u.strip()]
-        if len(urls) > 1:
-            safe_send_media_group(bot, user_id, [types.InputMediaPhoto(url) for url in urls])
-        elif urls:
-            safe_send_photo(bot, user_id, urls[0])
-
-        safe_send_message(bot, user_id, card.lesson_text)
-
-        kb = types.InlineKeyboardMarkup()
-        if index > 0:
-            kb.add(types.InlineKeyboardButton("⬅️ Назад", callback_data="prev_card"))
-        if index + 1 < len(cards):
-            kb.add(types.InlineKeyboardButton("➡️ Далее", callback_data="next_card"))
-            safe_send_message(bot, user_id, "Нажмите кнопку, чтобы продолжить обучение 📚", reply_markup=kb)
-        else:
-            kb.add(types.InlineKeyboardButton("✅ Всё понятно, готов пройти тест", callback_data="start_test"))
-            safe_send_photo(bot, user_id, "https://i.ibb.co/JRDxQ7HY/photo-1-2025-08-20-06-30-25.jpg")
-            safe_send_message(bot, user_id, "Поздравляю! ты прошел обучение! Мы подготовили небольшой тест, это займет всего пару минут 🕒")
-            safe_send_message(bot, user_id, "Нажмите кнопку, чтобы перейти к тесту 📝", reply_markup=kb)
-            safe_send_message(bot, user_id, "⚠️ Не выходите из теста, иначе обучение начнётся заново. ⚠️")
-
-    def send_test_question(bot, user_id, cards, index):
-        clear_last_messages(bot, user_id)  # удаляем старые сообщения
-
-        card = cards[index]
-
-        urls = [u.strip() for u in (card.test_image_urls or "").split(',') if u.strip()]
-        if len(urls) > 1:
-            safe_send_media_group(bot, user_id, [types.InputMediaPhoto(url) for url in urls])
-        elif urls:
-            safe_send_photo(bot, user_id, urls[0])
-
-        options = [opt for opt in [card.option_1, card.option_2, card.option_3, card.option_4] if opt]
-        kb = types.InlineKeyboardMarkup(row_width=2)
-        for idx, opt in enumerate(options):
-            kb.add(types.InlineKeyboardButton(opt, callback_data=f"answer|{idx}"))
-
-        safe_send_message(bot, user_id, card.question, reply_markup=kb)
-
-    # ---------------- КОЛЛБЭКИ ----------------
-    @bot.callback_query_handler(func=lambda cq: cq.data == "prev_card")
-    def cq_prev_card(cq: types.CallbackQuery):
-        user_id = cq.from_user.id
-        telegram_id = str(user_id)
-
-        with UserSessionLocal() as db_user, ServiceSessionLocal() as db_service:
-            seller = db_user.query(Seller).filter_by(telegram_id=telegram_id).first()
-            if not seller:
-                bot.answer_callback_query(cq.id, "Вы не зарегистрированы.")
+        if call.data.startswith("card_"):
+            try:
+                _, block_number, card_number = call.data.split("_")
+                block_number = int(block_number)
+                card_number = int(card_number)
+            except:
+                bot.answer_callback_query(call.id, "❌ Ошибка данных.")
                 return
 
-            cards = db_service.query(LearningCard).order_by(LearningCard.card_number).all()
-            exam = db_user.query(Exam).filter_by(seller_id=seller.id).first()
+            send_card(bot, call.message.chat.id, seller_id, block_number, card_number=card_number, last_message_ids=last_message_ids)
+            bot.answer_callback_query(call.id)
+            return
 
-            if not exam or not exam.start_education:
-                bot.answer_callback_query(cq.id, "Обучение не запущено.")
-                return
-
-            if exam.active_question == 0:
-                bot.answer_callback_query(cq.id, "Это первая карточка, назад нельзя.")
-                return
-
-            exam.active_question -= 1
-            exam.active_answer = 0
-            db_user.commit()
-            current_index = exam.active_question
-
-        bot.answer_callback_query(cq.id)
-        send_learning_card(bot, user_id, cards, current_index)
-
-    @bot.callback_query_handler(func=lambda cq: cq.data == "next_card")
-    def cq_next_card(cq: types.CallbackQuery):
-        user_id = cq.from_user.id
-        telegram_id = str(user_id)
-
-        with UserSessionLocal() as db:
-            seller = db.query(Seller).filter_by(telegram_id=telegram_id).first()
-            if not seller:
-                bot.answer_callback_query(cq.id, "Вы не зарегистрированы.")
-                return
-
-        with ServiceSessionLocal() as db:
-            cards = db.query(LearningCard).order_by(LearningCard.card_number).all()
-
-        with UserSessionLocal() as db:
-            exam = db.query(Exam).filter_by(seller_id=seller.id).first()
-            if not exam:
-                bot.answer_callback_query(cq.id, "Обучение не запущено.")
-                return
-
-            if exam.active_question + 1 >= len(cards):
-                bot.answer_callback_query(cq.id, "Это последняя карточка.")
-                return
-
-            exam.active_question += 1
-            db.commit()
-            current_index = exam.active_question
-
-        bot.answer_callback_query(cq.id)
-        send_learning_card(bot, user_id, cards, current_index)
-
-    @bot.callback_query_handler(func=lambda cq: cq.data == "start_test")
-    def cq_start_test(cq: types.CallbackQuery):
-        user_id = cq.from_user.id
-        telegram_id = str(user_id)
-
-        with UserSessionLocal() as db:
-            seller = db.query(Seller).filter_by(telegram_id=telegram_id).first()
-            if not seller:
-                bot.answer_callback_query(cq.id, "Вы не зарегистрированы.")
-                return
-
-            exam = db.query(Exam).filter_by(seller_id=seller.id).first()
-            if not exam:
-                bot.answer_callback_query(cq.id, "Обучение не запущено.")
-                return
-
-            exam.active_question = 0
-            exam.correct_answers = 0
-            exam.wrong_answers = "[]"
-            db.commit()
-
-        with ServiceSessionLocal() as db:
-            cards = db.query(LearningCard).order_by(LearningCard.card_number).all()
-
-        bot.answer_callback_query(cq.id)
-        send_test_question(bot, user_id, cards, 0)
-
-    @bot.callback_query_handler(func=lambda cq: cq.data and cq.data.startswith("answer|"))
-    def cq_answer(cq: types.CallbackQuery):
-        user_id = cq.from_user.id
-        telegram_id = str(user_id)
-
-        with UserSessionLocal() as db_user, ServiceSessionLocal() as db_service:
-            seller = db_user.query(Seller).filter_by(telegram_id=telegram_id).first()
-            if not seller:
-                bot.answer_callback_query(cq.id, "Вы не зарегистрированы.")
-                return
-
-            cards = db_service.query(LearningCard).order_by(LearningCard.card_number).all()
-            exam = db_user.query(Exam).filter_by(seller_id=seller.id).first()
-            if not exam:
-                bot.answer_callback_query(cq.id, "Обучение не запущено.")
-                return
-
-            _, sidx = cq.data.split('|')
-            selected = int(sidx)
-            current_index = exam.active_question
-
-            if current_index >= len(cards):
-                bot.answer_callback_query(cq.id, "Тест завершён или произошла ошибка.")
-                return
-
-            card = cards[current_index]
-            options = [opt for opt in [card.option_1, card.option_2, card.option_3, card.option_4] if opt]
-
-            correct_indexes = [int(x.strip()) for x in str(card.correct_option_index).split(",") if x.strip().isdigit()]
-
-            exam.active_answer = selected
-            if selected in correct_indexes:
-                exam.correct_answers += 1
-            else:
-                wrong = {
-                    "question": card.question,
-                    "correct": ", ".join(options[i] for i in correct_indexes if i < len(options)),
-                    "selected": options[selected] if selected < len(options) else "❓"
-                }
-                wrong_answers = json.loads(exam.wrong_answers or "[]")
-                wrong_answers.append(wrong)
-                exam.wrong_answers = json.dumps(wrong_answers, ensure_ascii=False)
-
-            exam.active_question += 1
-            next_index = exam.active_question
-
-            if next_index >= len(cards):
-                exam.active_question = 0
-                exam.active_answer = 0
-                exam.end_education = (exam.correct_answers == len(cards))
-
-            db_user.commit()
-            correct = exam.correct_answers
-            total = len(cards)
-            wrong_answers = json.loads(exam.wrong_answers or "[]")
-
-        bot.answer_callback_query(cq.id)
-
-        if next_index < total:
-            send_test_question(bot, user_id, cards, next_index)
-        else:
-            clear_last_messages(bot, user_id)  # удаляем старый вопрос с кнопками
-            if correct == total:
-                safe_send_message(bot, user_id, "🎉 Молодец! Все ответы правильные!")
-            else:
-                kb = types.InlineKeyboardMarkup()
-                kb.add(types.InlineKeyboardButton("Начать заново", callback_data="restart_education"))
-
-                message = f"❌ Вы ответили правильно на {correct} из {total} вопросов.\n\nНеправильные ответы:\n\n"
-                for i, w in enumerate(wrong_answers, 1):
-                    message += (
-                        f"❓ *{w['question']}*\n"
-                        f"🟥 Ваш ответ: {w['selected']}\n\n"
-                    )
-
-                safe_send_message(bot, user_id, message, parse_mode="Markdown", reply_markup=kb)
-
-    @bot.callback_query_handler(func=lambda cq: cq.data == "restart_education")
-    def cq_restart_education(cq: types.CallbackQuery):
-        user_id = cq.from_user.id
-        telegram_id = str(user_id)
-
-        with UserSessionLocal() as db:
-            seller = db.query(Seller).filter_by(telegram_id=telegram_id).first()
-            if not seller:
-                bot.answer_callback_query(cq.id, "Вы не зарегистрированы.")
-                return
-
-            exam = db.query(Exam).filter_by(seller_id=seller.id).first()
-            if not exam:
-                bot.answer_callback_query(cq.id, "Обучение не запущено.")
-                return
-
-            exam.start_education = True
-            exam.end_education = False
-            exam.active_question = 0
-            exam.correct_answers = 0
-            exam.wrong_answers = "[]"
-            db.commit()
-
-        with ServiceSessionLocal() as db:
-            cards = db.query(LearningCard).order_by(LearningCard.card_number).all()
-
-        bot.answer_callback_query(cq.id)
-        send_learning_card(bot, user_id, cards, 0)
+        if call.data == "show_congrats":
+            try:
+                for msg_id in last_message_ids:
+                    bot.delete_message(call.message.chat.id, msg_id)
+            except:
+                pass
+            bot.send_message(call.message.chat.id, "🎉 Вы завершили блок обучения!")
+            # Показываем снова меню блоков
+            bot.user_last_messages[telegram_id] = show_blocks_menu(bot, call.message.chat.id)
+            bot.answer_callback_query(call.id)

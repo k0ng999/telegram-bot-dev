@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 import telebot
 from handlers import (
-    start, support, website, info, catalog, education, stats, faq, news_and_bonuses, get_chat_id, sales_report, get_your_bonuses, description
+    start, support, website, info, catalog, education, stats, faq, news_and_bonuses, get_chat_id, sales_report, get_your_bonuses, description, test
 )
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -27,6 +27,7 @@ start.register(bot)
 info.register(bot)
 catalog.register(bot)
 education.register(bot)
+test.register(bot)
 stats.register(bot)
 news_and_bonuses.register(bot)
 website.register(bot)
@@ -76,6 +77,7 @@ scheduler.start()
 # Запуск бота
 if __name__ == '__main__':
     print("Бот запущен...")
+    bot.remove_webhook()   # <--- вот эта строка нужна!
     while True:
         try:
             bot.infinity_polling()

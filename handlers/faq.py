@@ -1,36 +1,79 @@
-from telebot.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from telebot import TeleBot, types
+from sqlalchemy.orm import Session
+from models.service.models import Faq
+from models.service import SessionLocal as ServiceSessionLocal
 
-# Словарь частых вопросов и ответов (ключ — короткий, значение — пара "вопрос:ответ")
-FAQS = {
-    "sizes": (
-        "Какие бывают размеры обуви в детском блоке?",
-        "С 17 по 25 👟"
-    ),
-    "care": (
-        "Как ухаживать за обувью?",
-        "Протирать влажной тканью. Не стирать в машинке! 🧼"
-    ),
-    "models": (
-        "Какие есть модели обуви?",
-        "Кроссовки, ботинки, сандалии — уточняйте в каталоге 👟👢"
-    ),
-}
 
-def register(bot):
+def register(bot: TeleBot):
+
     @bot.message_handler(commands=['faq'])
-    def handle_faq(message: Message):
-        keyboard = InlineKeyboardMarkup(row_width=1)
-        for key, (question, _) in FAQS.items():
-            keyboard.add(InlineKeyboardButton(text=question, callback_data=f"faq_{key}"))
+    def show_faq(message):
+        with ServiceSessionLocal() as session:
+            faqs = session.query(Faq).all()
 
-        bot.send_message(message.chat.id, "❓ Часто задаваемые вопросы:", reply_markup=keyboard)
+        if not faqs:
+            bot.send_message(message.chat.id, "❌ FAQ пока пуст.")
+            return
+
+        keyboard = types.InlineKeyboardMarkup()
+        for faq in faqs:
+            keyboard.add(
+                types.InlineKeyboardButton(
+                    text=faq.question,
+                    callback_data=f"faq_{faq.id}"
+                )
+            )
+
+        bot.send_message(message.chat.id, "📖 Выберите вопрос:", reply_markup=keyboard)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("faq_"))
-    def handle_faq_answer(call: CallbackQuery):
-        key = call.data.replace("faq_", "")
-        if key in FAQS:
-            question, answer = FAQS[key]
-            bot.answer_callback_query(call.id)
-            bot.send_message(call.message.chat.id, f"📌 {question}\n\n💬 {answer}")
+    def show_answer(call):
+        faq_id = call.data.split("_", 1)[1]
+
+        with ServiceSessionLocal() as session:
+            faq = session.query(Faq).filter_by(id=faq_id).first()
+
+        if not faq:
+            bot.answer_callback_query(call.id, "❌ Вопрос не найден.")
+            return
+
+        # ✅ закрываем "висящую загрузку"
+        bot.answer_callback_query(call.id)
+
+        text = f"❓ {faq.question}\n\n📌 {faq.answer}"
+
+        if faq.image_urls:
+            urls = [u.strip() for u in faq.image_urls.split(",") if u.strip()]
+
+            if len(urls) == 1:
+                # Одно фото
+                try:
+                    bot.send_photo(
+                        call.message.chat.id,
+                        urls[0],
+                        caption=text
+                    )
+                except Exception:
+                    bot.send_message(
+                        call.message.chat.id,
+                        f"{text}\n\n🔗 {urls[0]}"
+                    )
+            else:
+                # Несколько фото
+                media = []
+                for i, url in enumerate(urls):
+                    try:
+                        media.append(
+                            types.InputMediaPhoto(
+                                media=url,
+                                caption=text if i == 0 else None
+                            )
+                        )
+                    except Exception:
+                        bot.send_message(call.message.chat.id, f"🔗 {url}")
+
+                if media:
+                    bot.send_media_group(call.message.chat.id, media)
         else:
-            bot.answer_callback_query(call.id, "Вопрос не найден")
+            # Только текст
+            bot.send_message(call.message.chat.id, text)

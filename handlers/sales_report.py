@@ -7,7 +7,7 @@ from sqlalchemy import select
 from datetime import date
 from uuid import uuid4
 from models.user import SessionLocal
-from models.user.models import Seller, Exam, SalesReport, SellerStat
+from models.user.models import Seller , SalesReport, SellerStat, TestAttempt
 import requests
 import threading
 
@@ -57,11 +57,10 @@ def register(bot):
                 return
 
             exam = db.execute(
-                select(Exam)
-                .where(Exam.seller_id == seller.id)
-                .order_by(Exam.exam_date.desc())
+                select(TestAttempt)
+                .where(TestAttempt.seller_id == seller.id)
             ).scalars().first()
-            if not exam or not exam.end_education:
+            if not exam or not exam.finished:
                 bot.send_message(
                     message.chat.id,
                     "📘 Сначала пройдите обучение, прежде чем отправлять отчёт о продажах."

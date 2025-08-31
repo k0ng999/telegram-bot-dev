@@ -20,7 +20,6 @@ def register(bot):
         bot.send_photo(
             message.chat.id,
             "https://i.ibb.co/xSVBg66Y/photo-2025-08-20-04-08-01.jpg",
-            caption="Круговорот обуви Maison в природе 🌿👠"
         )
 
         # Отправляем заключительный текст
