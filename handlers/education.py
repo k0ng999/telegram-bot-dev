@@ -176,3 +176,21 @@ def register(bot: TeleBot):
             # Показываем снова меню блоков
             bot.user_last_messages[telegram_id] = show_blocks_menu(bot, call.message.chat.id)
             bot.answer_callback_query(call.id)
+        if call.data == "start_test":
+            # Удаляем все предыдущие сообщения обучения
+            last_message_ids = getattr(bot, "user_last_messages", {}).get(telegram_id, [])
+            for msg_id in last_message_ids:
+                try:
+                    bot.delete_message(call.message.chat.id, msg_id)
+                except:
+                    pass
+                
+            # Можно здесь отправить сообщение о начале теста
+            bot.send_message(call.message.chat.id, "📝 Начинаем тест!")
+            
+            # Очищаем список сообщений пользователя, чтобы не пытаться удалить их снова
+            bot.user_last_messages[telegram_id] = []
+        
+            bot.answer_callback_query(call.id)
+            return
+        
