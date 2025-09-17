@@ -115,7 +115,7 @@ def register(bot: TeleBot):
                 keyboard_sales.add(types.KeyboardButton("/sales_report"))
                 bot.send_message(
                     message.chat.id,
-                    "✅ Вы уже прошли обучение! Теперь вы можете пройти тест, написав /sales_report.",
+                    "✅ Вы уже прошли обучение и тестирование! Теперь Вы можете отправлять отчеты о продажах, написав /sales_report.",
                     reply_markup=keyboard_sales
                 )
                 return

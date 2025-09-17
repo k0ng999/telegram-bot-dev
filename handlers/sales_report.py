@@ -176,7 +176,7 @@ def register(bot):
         content_types=['text', 'video', 'document', 'audio', 'voice', 'sticker', 'location', 'contact']
     )
     def handle_invalid_content(message: Message):
-        bot.send_message(message.chat.id, "❌ Прикрепите, пожалуйста, именно фото чеков.")
+        bot.send_message(message.chat.id, '❌ Прикрепите, пожалуйста, именно фото чеков.\n Если хотите выйти с режима отправки отчета то нажмите кнопку выше "Отклонить"!')
 
     def retry_upload(bot, call, state, seller, telegram_id, attempt=1):
         MAX_ATTEMPTS = 5

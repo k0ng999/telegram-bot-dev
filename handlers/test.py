@@ -201,8 +201,9 @@ def send_question(bot: TeleBot, chat_id: int, question, attempt_id: int, repeat_
             if len(urls) == 1:
                 msg = bot.send_photo(chat_id, urls[0], caption=f"📝 {question.question}", reply_markup=keyboard)
                 media_group_ids.append(msg.message_id)
+                print(1)
             else:
-                media = [types.InputMediaPhoto(media=urls[0], caption=f"📝 {question.question}")]
+                media = [types.InputMediaPhoto(media=urls[0], caption=f"")]
                 for url in urls[1:]:
                     media.append(types.InputMediaPhoto(media=url))
                 try:
@@ -211,15 +212,16 @@ def send_question(bot: TeleBot, chat_id: int, question, attempt_id: int, repeat_
                     bot.edit_message_caption(
                         chat_id=chat_id,
                         message_id=messages[0].message_id,
-                        caption=f"📝 {question.question}",
-                        reply_markup=keyboard,
+                        caption=f"",
                     )
                 except Exception:
                     msg = bot.send_message(chat_id, f"📝 {question.question}", reply_markup=keyboard)
                     media_group_ids.append(msg.message_id)
+                    print(3)
         else:
             msg = bot.send_message(chat_id, f"📝 {question.question}", reply_markup=keyboard)
             media_group_ids.append(msg.message_id)
+            print(4)
 
         photo_group_messages[attempt_id] = media_group_ids
 
